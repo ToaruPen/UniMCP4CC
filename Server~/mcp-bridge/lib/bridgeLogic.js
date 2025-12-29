@@ -208,6 +208,31 @@ export function normalizeUnityArguments(toolName, args) {
 
   const normalized = { ...args };
 
+  if (toolName.startsWith('unity.uitoolkit.')) {
+    const gameObject = typeof normalized.gameObject === 'string' ? normalized.gameObject.trim() : '';
+    const gameObjectPath = typeof normalized.gameObjectPath === 'string' ? normalized.gameObjectPath.trim() : '';
+    const gameObjectName = typeof normalized.gameObjectName === 'string' ? normalized.gameObjectName.trim() : '';
+
+    const hasGameObject = gameObject.length > 0;
+    const hasGameObjectPath = gameObjectPath.length > 0;
+
+    // Unity-side UIToolkit APIs require `gameObject`, while the tool schema exposes `gameObjectPath`
+    // (and `createUIDocument` uses `gameObjectName`). Add aliases for better UX.
+    if (!hasGameObject) {
+      const fallback = hasGameObjectPath ? gameObjectPath : gameObjectName;
+      if (typeof fallback === 'string' && fallback.trim().length > 0) {
+        normalized.gameObject = fallback.trim();
+      }
+    }
+
+    if (!hasGameObjectPath) {
+      const aliasSource = typeof normalized.gameObject === 'string' ? normalized.gameObject.trim() : '';
+      if (aliasSource.length > 0) {
+        normalized.gameObjectPath = aliasSource;
+      }
+    }
+  }
+
   if (
     toolName === 'unity.create' &&
     typeof normalized.type === 'string' &&

@@ -1,6 +1,6 @@
 {
   "name": "com.dsgarage.unimcp4cc",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "displayName": "UniMCP4CC - Unity MCP Server for Claude Code",
   "description": "Model Context Protocol server for Unity Editor integration with Claude Code. Enables AI-powered Unity development through natural language commands.",
   "unity": "6000.0",
@@ -9,6 +9,13 @@
   "changelogUrl": "https://github.com/dsgarage/UniMCP4CC/blob/main/CHANGELOG.md",
   "licensesUrl": "https://github.com/dsgarage/UniMCP4CC/blob/main/LICENSE",
   "dependencies": {},
+  "samples": [
+    {
+      "displayName": "UIToolkit Extension",
+      "description": "Optional LocalMcp.UnityServer.UIToolkit.Editor.dll enabling unity.uitoolkit.* MCP tools.",
+      "path": "Samples~/UIToolkit Extension"
+    }
+  ],
   "keywords": [
     "mcp",
     "claude",

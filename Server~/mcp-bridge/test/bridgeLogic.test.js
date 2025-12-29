@@ -178,6 +178,27 @@ test('normalizeUnityArguments', () => {
   assert.deepEqual(normalizeUnityArguments('unity.any', null), {});
 
   assert.deepEqual(
+    normalizeUnityArguments('unity.uitoolkit.runtime.getHierarchy', { gameObjectPath: 'Root/UI' }),
+    { gameObjectPath: 'Root/UI', gameObject: 'Root/UI' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.uitoolkit.runtime.getHierarchy', { gameObjectPath: '   ' }),
+    { gameObjectPath: '   ' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.uitoolkit.runtime.createUIDocument', { gameObjectName: 'UiDoc', uxmlPath: 'Assets/UI.uxml' }),
+    { gameObjectName: 'UiDoc', uxmlPath: 'Assets/UI.uxml', gameObject: 'UiDoc', gameObjectPath: 'UiDoc' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.uitoolkit.runtime.getUIDocument', { gameObject: 'Root/UiDoc' }),
+    { gameObject: 'Root/UiDoc', gameObjectPath: 'Root/UiDoc' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.uitoolkit.runtime.getUIDocument', { gameObject: '   ' }),
+    { gameObject: '   ' }
+  );
+
+  assert.deepEqual(
     normalizeUnityArguments('unity.create', { type: 'Cube', name: 'Box' }),
     { type: 'Cube', name: 'Box', primitiveType: 'Cube' }
   );

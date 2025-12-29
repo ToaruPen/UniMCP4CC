@@ -104,6 +104,7 @@ The bridge automatically adds aliases so you can call tools with either key:
 - `unity.asset.delete`: `path` → also sent as `assetPath` (if missing)
 - `unity.asset.createFolder`: `parentFolder` + `newFolderName` → also sent as `path` (if missing)
 - `unity.asset.list`: `filter` like `t:Material` → also sent as `assetType` (if missing)
+- `unity.uitoolkit.*`: `gameObjectPath` / `gameObjectName` → also sent as `gameObject` (and `gameObject` → also sent as `gameObjectPath`) for better compatibility
 
 ## Troubleshooting
 
