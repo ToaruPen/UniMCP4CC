@@ -217,6 +217,31 @@ export function normalizeUnityArguments(toolName, args) {
     normalized.primitiveType = normalized.type;
   }
 
+  if (toolName === 'unity.asset.createFolder') {
+    const hasPath = typeof normalized.path === 'string' && normalized.path.trim().length > 0;
+    if (!hasPath) {
+      const parentFolderRaw = typeof normalized.parentFolder === 'string' ? normalized.parentFolder.trim() : '';
+      const newFolderNameRaw = typeof normalized.newFolderName === 'string' ? normalized.newFolderName.trim() : '';
+
+      if (parentFolderRaw.length > 0 && newFolderNameRaw.length > 0) {
+        const parentFolder = parentFolderRaw.replace(/\/+$/, '');
+        const newFolderName = newFolderNameRaw.replace(/^\/+/, '');
+        normalized.path = `${parentFolder}/${newFolderName}`;
+      }
+    }
+  }
+
+  if (toolName === 'unity.asset.list') {
+    const hasAssetType = typeof normalized.assetType === 'string' && normalized.assetType.trim().length > 0;
+    if (!hasAssetType) {
+      const filterRaw = typeof normalized.filter === 'string' ? normalized.filter.trim() : '';
+      const match = /^t\s*:\s*([A-Za-z0-9_]+)/i.exec(filterRaw);
+      if (match?.[1]) {
+        normalized.assetType = match[1];
+      }
+    }
+  }
+
   if (typeof normalized.path === 'string' && normalized.path.trim().length > 0) {
     if (typeof normalized.gameObjectPath !== 'string' || normalized.gameObjectPath.trim().length === 0) {
       normalized.gameObjectPath = normalized.path;

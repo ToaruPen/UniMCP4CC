@@ -96,7 +96,7 @@ async function resolveUnambiguousGameObjectTarget(unityHttpUrl, toolName, args) 
   }
 
   const query = queryInfo.query;
-  const matchMode = queryInfo.forceNameMatch ? 'name' : 'path';
+  const matchMode = queryInfo.forceNameMatch ? 'name' : query.includes('/') ? 'path' : 'name';
   const queryDepth = matchMode === 'path' ? query.split('/').length - 1 : 0;
   const maxDepth = Math.min(Math.max(SCENE_LIST_MAX_DEPTH, queryDepth), 100);
 

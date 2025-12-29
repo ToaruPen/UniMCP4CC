@@ -206,6 +206,42 @@ test('normalizeUnityArguments', () => {
     { path: 'Assets/foo.prefab', assetPath: 'Assets/bar.prefab', gameObjectPath: 'Assets/foo.prefab' }
   );
   assert.deepEqual(
+    normalizeUnityArguments('unity.asset.createFolder', { parentFolder: 'Assets', newFolderName: 'McpTest' }),
+    { parentFolder: 'Assets', newFolderName: 'McpTest', path: 'Assets/McpTest', gameObjectPath: 'Assets/McpTest' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.createFolder', { path: 'Assets/Already', parentFolder: 'Assets', newFolderName: 'Ignored' }),
+    { path: 'Assets/Already', parentFolder: 'Assets', newFolderName: 'Ignored', gameObjectPath: 'Assets/Already' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.createFolder', { parentFolder: 'Assets', newFolderName: '   ' }),
+    { parentFolder: 'Assets', newFolderName: '   ' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.createFolder', { parentFolder: 123, newFolderName: 'McpTest' }),
+    { parentFolder: 123, newFolderName: 'McpTest' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.createFolder', { parentFolder: 'Assets', newFolderName: 456 }),
+    { parentFolder: 'Assets', newFolderName: 456 }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.list', { path: 'Assets', filter: 't:Material', recursive: true }),
+    { path: 'Assets', filter: 't:Material', recursive: true, assetType: 'Material', gameObjectPath: 'Assets' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.list', { path: 'Assets', filter: 't:Material', assetType: 'Prefab' }),
+    { path: 'Assets', filter: 't:Material', assetType: 'Prefab', gameObjectPath: 'Assets' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.list', { path: 'Assets', filter: 'name:foo' }),
+    { path: 'Assets', filter: 'name:foo', gameObjectPath: 'Assets' }
+  );
+  assert.deepEqual(
+    normalizeUnityArguments('unity.asset.list', { path: 'Assets', filter: 123 }),
+    { path: 'Assets', filter: 123, gameObjectPath: 'Assets' }
+  );
+  assert.deepEqual(
     normalizeUnityArguments('unity.gameObject.setActive', { path: '   ' }),
     { path: '   ' }
   );
