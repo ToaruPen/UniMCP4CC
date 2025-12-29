@@ -126,7 +126,7 @@ https://github.com/ToaruPen/UniMCP4CC.git
 | editor | エディタ操作 |
 | log | ログ操作 |
 
-詳細な API リファレンスは [Wiki](https://github.com/ToaruPen/UniMCP4CC/wiki) を参照してください。
+詳細な API リファレンスは [Docs (Wiki)](docs/wiki/Home.md) を参照してください。
 Bridge（Node）の詳細は `Server~/mcp-bridge/README.md` を参照してください。
 
 ## アーキテクチャ
@@ -166,4 +166,4 @@ MIT License
 ## 関連リンク
 
 - [Model Context Protocol](https://modelcontextprotocol.io/)
-- [API Reference (Wiki)](https://github.com/ToaruPen/UniMCP4CC/wiki)
+- [Docs (Wiki)](docs/wiki/Home.md)
