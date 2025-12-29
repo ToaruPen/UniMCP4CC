@@ -1,5 +1,6 @@
 {
   "name": "unity-mcp-bridge",
+  "private": true,
   "version": "1.0.0",
   "description": "MCP Bridge for Unity Editor - connects Claude Code to Unity",
   "type": "module",

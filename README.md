@@ -4,6 +4,18 @@ Unity Editor を Claude Code から操作するための MCP (Model Context Prot
 
 > **Note**: このパッケージは **Claude Code 専用** に設計・テストされています。
 
+## できること（概要）
+
+Unity Editor を “状態取得 → 判断 → 変更 → 検証” のループで操作できます。
+
+- **ヒエラルキー / シーン**: GameObject の作成・検索・階層の取得・親子付け替え・Active 切替、Scene の作成/保存/オープン
+- **Transform / コンポーネント**: Transform（位置/回転/スケール）変更、Component の追加・削除・プロパティ変更
+- **アセット / インポート**: アセットの作成・一覧・削除、各種インポート操作
+- **エディタ / プロジェクト**: パッケージ・テスト・ログ取得など（導入済みパッケージに応じて拡張）
+
+> **補足**: `unity.*` ツールには、導入されていない Unity パッケージ向けのものも含まれます。該当パッケージが未導入の場合、呼び出し時にエラーになります。
+> ツール一覧は MCP クライアントの `tools/list` で取得できます（例: Unity 6 環境で合計 778 ツールを確認。プロジェクト/導入パッケージにより変動）。
+
 ## 動作環境
 
 | 項目 | バージョン |
@@ -23,6 +35,7 @@ Claude Code から Unity Editor を直接操作できます：
 - **アセット操作**: アセットの検索・インポート・作成
 - **プレハブ操作**: プレハブの作成・インスタンス化
 - **オーディオ操作**: AudioSource の作成・再生制御
+- **エディタ操作**: パッケージ / テスト / ログ取得など（導入状況に依存）
 
 ## インストール
 
@@ -59,6 +72,24 @@ https://github.com/dsgarage/UniMCP4CC.git
 > Note: 安全のため、削除/ビルド/インポート等の破壊的操作は `__confirm: true` を要求します（Bridge側）。
 > さらに、破壊的操作で GameObject ターゲットが曖昧な場合は実行せずに失敗し、候補一覧（パス）を返します（Bridge側）。
 
+## 安全機構（Bridge）
+
+`Server~/mcp-bridge` は MCP クライアント（Claude Code）と Unity HTTP サーバーの間に入り、誤操作を減らすためのガードを提供します。
+
+- **確認フラグ**: 破壊的操作は `__confirm: true` が必須（任意で `__confirmNote`）
+- **曖昧ターゲットの拒否**: 破壊的操作で target が曖昧な場合、`unity.scene.list` を使って候補一覧（パス）を返して停止
+- **タイムアウト制御**: `__timeoutMs`（または `__timeout_ms` / `__timeout`）で 1 回の呼び出しだけ延長可能
+- **Bridge 付属ツール**: `bridge.status` / `bridge.ping` / `bridge.reload_config`
+
+## UI Toolkit について
+
+`unity.uitoolkit.*` ツール群は一覧に表示されますが、利用には追加の拡張が必要です。
+
+- **必要な拡張**: `LocalMcp.UnityServer.UIToolkit.Editor`（本パッケージには同梱していません）
+- **症状**: 未導入だと `unity.uitoolkit.*` の呼び出しが「必要なパッケージが未インストール」というエラーで失敗します
+
+> `com.unity.ui.test-framework`（UI Test Framework）は上記拡張の代替ではありません。
+
 ## API カテゴリ
 
 | カテゴリ | 説明 |
@@ -74,11 +105,22 @@ https://github.com/dsgarage/UniMCP4CC.git
 | log | ログ操作 |
 
 詳細な API リファレンスは [Wiki](https://github.com/dsgarage/UniMCP4CC/wiki) を参照してください。
+Bridge（Node）の詳細は `Server~/mcp-bridge/README.md` を参照してください。
 
 ## アーキテクチャ
 
 ```
 Claude Code → MCP Bridge (Node.js) → Unity MCP Server → Unity Editor
+```
+
+## テスト（Bridge）
+
+Unity Editor を起動した状態で、`Server~/mcp-bridge` の E2E スモークテストを実行できます。
+
+```bash
+cd Server~/mcp-bridge
+npm install
+npm run smoke -- --project "/path/to/your/unity/project"
 ```
 
 ## トラブルシューティング

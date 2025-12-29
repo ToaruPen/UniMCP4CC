@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2025-12-29
+
+### Added
+- MCP Bridge safety gates for destructive operations (`__confirm: true`, ambiguous-target blocking with candidates)
+- Bridge utility tools: `bridge.status`, `bridge.ping`, `bridge.reload_config`
+- Bridge tests (100% coverage for core normalization/safety logic) and an E2E smoke test script
+
+### Changed
+- Bridge argument normalization for schema variants (e.g. `unity.asset.createFolder`, `unity.asset.list`)
+- Documentation updates (capabilities summary, safety behavior, UI Toolkit extension note, smoke test instructions)
+
 ## [1.0.6] - 2025-12-23
 
 ### Changed
