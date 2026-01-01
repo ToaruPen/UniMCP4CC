@@ -3,25 +3,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-const RUNTIME_CONFIG_FILENAME = '.unity-mcp-runtime.json';
-
-function fail(message) {
-  console.error(message);
-  process.exitCode = 1;
-  throw new Error(message);
-}
-
-function parsePositiveInt(value, fallback) {
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  buildBridgeEnv,
+  extractLastJson,
+  fail,
+  parsePositiveInt,
+  readRuntimeConfig,
+  resolveBridgeIndexPath,
+} from './_e2eUtil.js';
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -112,25 +103,6 @@ function parseArgs(argv) {
   return options;
 }
 
-function readRuntimeConfig(unityProjectRoot) {
-  const runtimePath = path.join(unityProjectRoot, RUNTIME_CONFIG_FILENAME);
-  if (!fs.existsSync(runtimePath)) {
-    fail(`Runtime config not found: ${runtimePath}\nOpen Unity once so the MCP server writes ${RUNTIME_CONFIG_FILENAME}.`);
-  }
-
-  const parsed = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
-  const httpPort = Number(parsed.httpPort);
-  if (!Number.isFinite(httpPort) || httpPort <= 0) {
-    fail(`Invalid httpPort in ${runtimePath}`);
-  }
-
-  return {
-    httpUrl: `http://localhost:${httpPort}`,
-    runtimePath,
-    parsed,
-  };
-}
-
 function activateApp(appName) {
   if (typeof appName !== 'string' || appName.trim().length === 0) {
     return;
@@ -175,29 +147,6 @@ async function waitForHealthStable(httpUrl, { stableCount, intervalMs, maxWaitMs
   }
 
   return { ok: false, elapsedMs: Date.now() - startTime, last: await healthOnce(httpUrl, 1000) };
-}
-
-function extractLastJson(result) {
-  const parts = [];
-  for (const item of result?.content ?? []) {
-    if (item?.type === 'text' && typeof item.text === 'string') {
-      parts.push(item.text);
-    }
-  }
-
-  for (let i = parts.length - 1; i >= 0; i--) {
-    const text = parts[i].trim();
-    if (!text.startsWith('{') && !text.startsWith('[')) {
-      continue;
-    }
-    try {
-      return JSON.parse(text);
-    } catch {
-      continue;
-    }
-  }
-
-  return null;
 }
 
 async function callToolTimed(client, name, args) {
@@ -273,17 +222,8 @@ async function main() {
     unityHttpUrl = runtime.httpUrl;
   }
 
-  const bridgeIndexPath = fileURLToPath(new URL('../index.js', import.meta.url));
-  const env = {
-    ...getDefaultEnvironment(),
-    UNITY_HTTP_URL: unityHttpUrl,
-    MCP_VERBOSE: options.verbose ? 'true' : undefined,
-  };
-  for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) {
-      delete env[key];
-    }
-  }
+  const bridgeIndexPath = resolveBridgeIndexPath(import.meta.url);
+  const env = buildBridgeEnv({ unityHttpUrl, verbose: options.verbose });
 
   const client = new Client({ name: 'unity-mcp-bridge-playmode-ab', version: '1.0.0' }, { capabilities: {} });
   const transport = new StdioClientTransport({ command: 'node', args: [bridgeIndexPath], env });

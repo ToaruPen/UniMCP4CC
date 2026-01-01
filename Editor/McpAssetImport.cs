@@ -25,40 +25,45 @@ namespace UniMCP4CC.Editor
       public string[] spriteNames;
     }
 
+    private static readonly object TypeCacheLock = new object();
+    private static readonly Dictionary<string, Type> TypeCache = new Dictionary<string, Type>(StringComparer.Ordinal);
+
     public static string SetTextureTypeBase64(string assetPath, string textureType, string reimport)
     {
+      string EncodeResult(string status, string message, Action<ResultPayload> configure = null)
+      {
+        var payload = new ResultPayload
+        {
+          status = status,
+          message = message,
+          assetPath = assetPath,
+        };
+
+        configure?.Invoke(payload);
+
+        return Encode(payload);
+      }
+
       try
       {
         if (string.IsNullOrWhiteSpace(assetPath))
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = "assetPath is required",
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", "assetPath is required");
         }
 
         var importer = AssetImporter.GetAtPath(assetPath) as TextureImporter;
         if (importer == null)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"No TextureImporter found at path: {assetPath}",
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"No TextureImporter found at path: {assetPath}");
         }
 
         if (!TryParseTextureImporterType(textureType, out var parsedType))
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"Unsupported textureType: {textureType}",
-            assetPath = assetPath,
-            textureType = textureType,
-          });
+          return EncodeResult(
+            "error",
+            $"Unsupported textureType: {textureType}",
+            payload => payload.textureType = textureType
+          );
         }
 
         importer.textureType = parsedType;
@@ -72,38 +77,43 @@ namespace UniMCP4CC.Editor
           importer.SaveAndReimport();
         }
 
-        return Encode(new ResultPayload
-        {
-          status = "success",
-          message = "Texture importer updated",
-          assetPath = assetPath,
-          textureType = importer.textureType.ToString(),
-        });
+        return EncodeResult(
+          "success",
+          "Texture importer updated",
+          payload => payload.textureType = importer.textureType.ToString()
+        );
       }
       catch (Exception exception)
       {
-        return Encode(new ResultPayload
-        {
-          status = "error",
-          message = exception.Message,
-          assetPath = assetPath,
-          textureType = textureType,
-        });
+        return EncodeResult(
+          "error",
+          exception.Message,
+          payload => payload.textureType = textureType
+        );
       }
     }
 
     public static string ListSpritesBase64(string assetPath)
     {
+      string EncodeResult(string status, string message, Action<ResultPayload> configure = null)
+      {
+        var payload = new ResultPayload
+        {
+          status = status,
+          message = message,
+          assetPath = assetPath,
+        };
+
+        configure?.Invoke(payload);
+
+        return Encode(payload);
+      }
+
       try
       {
         if (string.IsNullOrWhiteSpace(assetPath))
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = "assetPath is required",
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", "assetPath is required");
         }
 
         var sprites = CollectSpritesAtPath(assetPath);
@@ -113,23 +123,19 @@ namespace UniMCP4CC.Editor
           names[index] = sprites[index] != null ? sprites[index].name : string.Empty;
         }
 
-        return Encode(new ResultPayload
-        {
-          status = sprites.Count > 0 ? "success" : "error",
-          message = sprites.Count > 0 ? "Sprites found" : $"No sprites found at path: {assetPath}",
-          assetPath = assetPath,
-          spriteCount = sprites.Count,
-          spriteNames = names,
-        });
+        return EncodeResult(
+          sprites.Count > 0 ? "success" : "error",
+          sprites.Count > 0 ? "Sprites found" : $"No sprites found at path: {assetPath}",
+          payload =>
+          {
+            payload.spriteCount = sprites.Count;
+            payload.spriteNames = names;
+          }
+        );
       }
       catch (Exception exception)
       {
-        return Encode(new ResultPayload
-        {
-          status = "error",
-          message = exception.Message,
-          assetPath = assetPath,
-        });
+        return EncodeResult("error", exception.Message);
       }
     }
 
@@ -141,88 +147,84 @@ namespace UniMCP4CC.Editor
       string spriteName
     )
     {
+      string EncodeResult(string status, string message, Action<ResultPayload> configure = null)
+      {
+        var payload = new ResultPayload
+        {
+          status = status,
+          message = message,
+          gameObjectPath = gameObjectPath,
+          componentType = componentType,
+          fieldName = fieldName,
+          assetPath = assetPath,
+        };
+
+        configure?.Invoke(payload);
+
+        return Encode(payload);
+      }
+
       try
       {
         if (string.IsNullOrWhiteSpace(gameObjectPath) || string.IsNullOrWhiteSpace(componentType) || string.IsNullOrWhiteSpace(fieldName))
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = "gameObjectPath, componentType, and fieldName are required",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", "gameObjectPath, componentType, and fieldName are required");
         }
 
         var gameObject = GameObject.Find(gameObjectPath);
         if (gameObject == null)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"GameObject not found: {gameObjectPath}",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"GameObject not found: {gameObjectPath}");
         }
 
-        var resolvedComponentType = ResolveType(componentType);
+        var componentTypeTrimmed = componentType.Trim();
+        string[] ambiguousComponentTypes = null;
+        Type resolvedComponentType = null;
+
+        if (componentTypeTrimmed.IndexOf('.') < 0)
+        {
+          resolvedComponentType = ResolveComponentTypeOnGameObject(gameObject, componentTypeTrimmed, out ambiguousComponentTypes);
+        }
+
+        if (resolvedComponentType == null && ambiguousComponentTypes == null)
+        {
+          resolvedComponentType = ResolveType(componentTypeTrimmed, out ambiguousComponentTypes);
+        }
+
         if (resolvedComponentType == null)
         {
-          return Encode(new ResultPayload
+          if (ambiguousComponentTypes != null && ambiguousComponentTypes.Length > 0)
           {
-            status = "error",
-            message = $"Component type not found: {componentType}",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+            var messageBuilder = new StringBuilder();
+            messageBuilder.Append($"Component type is ambiguous: {componentTypeTrimmed}");
+            messageBuilder.Append("\nCandidates:");
+            for (var index = 0; index < ambiguousComponentTypes.Length; index++)
+            {
+              messageBuilder.Append("\n- ");
+              messageBuilder.Append(ambiguousComponentTypes[index]);
+            }
+            messageBuilder.Append("\nSpecify a fully qualified type name (Namespace.TypeName).");
+            return EncodeResult("error", messageBuilder.ToString());
+          }
+
+          return EncodeResult("error", $"Component type not found: {componentTypeTrimmed}");
         }
 
         var component = gameObject.GetComponent(resolvedComponentType);
         if (component == null)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"Component not found: {componentType} on {gameObjectPath}",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"Component not found: {componentType} on {gameObjectPath}");
         }
 
         if (string.IsNullOrWhiteSpace(assetPath))
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = "assetPath is required",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", "assetPath is required");
         }
 
         var sprites = CollectSpritesAtPath(assetPath);
         if (sprites.Count == 0)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"Sprite not found at path: {assetPath}",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"Sprite not found at path: {assetPath}");
         }
 
         Sprite sprite = null;
@@ -263,96 +265,68 @@ namespace UniMCP4CC.Editor
             names[index] = sprites[index] != null ? sprites[index].name : string.Empty;
           }
 
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message =
-              sprites.Count <= 1
-                ? $"Sprite not found at path: {assetPath}"
-                : $"Multiple sprites found at path: {assetPath}. Specify spriteName.",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-            spriteName = spriteNameTrimmed,
-            spriteCount = sprites.Count,
-            spriteNames = names,
-          });
+          return EncodeResult(
+            "error",
+            sprites.Count <= 1
+              ? $"Sprite not found at path: {assetPath}"
+              : $"Multiple sprites found at path: {assetPath}. Specify spriteName.",
+            payload =>
+            {
+              payload.spriteName = spriteNameTrimmed;
+              payload.spriteCount = sprites.Count;
+              payload.spriteNames = names;
+            }
+          );
         }
 
         if (component is SpriteRenderer spriteRenderer && string.Equals(fieldName.Trim(), "sprite", StringComparison.OrdinalIgnoreCase))
         {
           spriteRenderer.sprite = sprite;
           EditorUtility.SetDirty(spriteRenderer);
-          return Encode(new ResultPayload
-          {
-            status = "success",
-            message = "SpriteRenderer.sprite updated",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-            referenceName = sprite.name,
-            spriteName = sprite.name,
-          });
+          return EncodeResult(
+            "success",
+            "SpriteRenderer.sprite updated",
+            payload =>
+            {
+              payload.referenceName = sprite.name;
+              payload.spriteName = sprite.name;
+            }
+          );
         }
 
         var serializedObject = new SerializedObject(component);
         var property = serializedObject.FindProperty(fieldName);
         if (property == null)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"SerializedProperty not found: {fieldName}",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"SerializedProperty not found: {fieldName}");
         }
 
         if (property.propertyType != SerializedPropertyType.ObjectReference)
         {
-          return Encode(new ResultPayload
-          {
-            status = "error",
-            message = $"Property is not an ObjectReference: {fieldName} ({property.propertyType})",
-            gameObjectPath = gameObjectPath,
-            componentType = componentType,
-            fieldName = fieldName,
-            assetPath = assetPath,
-          });
+          return EncodeResult("error", $"Property is not an ObjectReference: {fieldName} ({property.propertyType})");
         }
 
         property.objectReferenceValue = sprite;
         serializedObject.ApplyModifiedPropertiesWithoutUndo();
         EditorUtility.SetDirty(component);
 
-        return Encode(new ResultPayload
-        {
-          status = "success",
-          message = "Sprite reference updated",
-          gameObjectPath = gameObjectPath,
-          componentType = componentType,
-          fieldName = fieldName,
-          assetPath = assetPath,
-          referenceName = sprite.name,
-          spriteName = sprite.name,
-        });
+        return EncodeResult(
+          "success",
+          "Sprite reference updated",
+          payload =>
+          {
+            payload.referenceName = sprite.name;
+            payload.spriteName = sprite.name;
+          }
+        );
       }
       catch (Exception exception)
       {
-        return Encode(new ResultPayload
-        {
-          status = "error",
-          message = exception.Message,
-          gameObjectPath = gameObjectPath,
-          componentType = componentType,
-          fieldName = fieldName,
-          assetPath = assetPath,
-          spriteName = spriteName,
-        });
+        return EncodeResult(
+          "error",
+          exception.Message,
+          payload => payload.spriteName = spriteName
+        );
       }
     }
 
@@ -449,16 +423,99 @@ namespace UniMCP4CC.Editor
       }
     }
 
-    private static Type ResolveType(string typeName)
+    private static Type ResolveComponentTypeOnGameObject(GameObject gameObject, string typeName, out string[] ambiguousCandidates)
     {
+      ambiguousCandidates = null;
+      if (gameObject == null || string.IsNullOrWhiteSpace(typeName))
+      {
+        return null;
+      }
+
+      var trimmed = typeName.Trim();
+      if (trimmed.Length == 0)
+      {
+        return null;
+      }
+
+      var matches = new HashSet<Type>();
+      foreach (var component in gameObject.GetComponents<Component>())
+      {
+        if (component == null)
+        {
+          continue;
+        }
+
+        var candidate = component.GetType();
+        if (candidate != null && string.Equals(candidate.Name, trimmed, StringComparison.Ordinal))
+        {
+          matches.Add(candidate);
+        }
+      }
+
+      if (matches.Count == 1)
+      {
+        foreach (var candidate in matches)
+        {
+          return candidate;
+        }
+      }
+
+      if (matches.Count > 1)
+      {
+        var names = new List<string>(matches.Count);
+        foreach (var candidate in matches)
+        {
+          var fullName = candidate.FullName;
+          names.Add(string.IsNullOrEmpty(fullName) ? candidate.Name : fullName);
+        }
+
+        names.Sort(StringComparer.Ordinal);
+
+        var max = names.Count > 10 ? 10 : names.Count;
+        ambiguousCandidates = new string[max];
+        for (var index = 0; index < max; index++)
+        {
+          ambiguousCandidates[index] = names[index];
+        }
+      }
+
+      return null;
+    }
+
+    private static Type ResolveType(string typeName, out string[] ambiguousCandidates)
+    {
+      ambiguousCandidates = null;
       if (string.IsNullOrWhiteSpace(typeName))
       {
         return null;
       }
 
       var trimmed = typeName.Trim();
+      lock (TypeCacheLock)
+      {
+        if (TypeCache.TryGetValue(trimmed, out var cached) && cached != null)
+        {
+          return cached;
+        }
+      }
+
+      var resolved = ResolveTypeUncached(trimmed, out ambiguousCandidates);
+      if (resolved != null)
+      {
+        lock (TypeCacheLock)
+        {
+          TypeCache[trimmed] = resolved;
+        }
+      }
+
+      return resolved;
+    }
+
+    private static Type ResolveTypeUncached(string trimmed, out string[] ambiguousCandidates)
+    {
+      ambiguousCandidates = null;
       var found = Type.GetType(trimmed);
-      if (found != null)
+      if (found != null && typeof(Component).IsAssignableFrom(found))
       {
         return found;
       }
@@ -468,7 +525,7 @@ namespace UniMCP4CC.Editor
         try
         {
           var candidate = assembly.GetType(trimmed);
-          if (candidate != null)
+          if (candidate != null && typeof(Component).IsAssignableFrom(candidate))
           {
             return candidate;
           }
@@ -479,21 +536,64 @@ namespace UniMCP4CC.Editor
         }
       }
 
+      if (trimmed.IndexOf('.') >= 0)
+      {
+        return null;
+      }
+
+      var matches = new List<Type>();
       foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
       {
         try
         {
           foreach (var candidate in assembly.GetTypes())
           {
-            if (candidate != null && string.Equals(candidate.Name, trimmed, StringComparison.Ordinal))
+            if (
+              candidate != null &&
+              typeof(Component).IsAssignableFrom(candidate) &&
+              string.Equals(candidate.Name, trimmed, StringComparison.Ordinal)
+            )
             {
-              return candidate;
+              matches.Add(candidate);
+              if (matches.Count >= 32)
+              {
+                break;
+              }
             }
           }
         }
         catch
         {
           // ignore and continue
+        }
+
+        if (matches.Count >= 32)
+        {
+          break;
+        }
+      }
+
+      if (matches.Count == 1)
+      {
+        return matches[0];
+      }
+
+      if (matches.Count > 1)
+      {
+        var names = new List<string>(matches.Count);
+        for (var index = 0; index < matches.Count; index++)
+        {
+          var fullName = matches[index].FullName;
+          names.Add(string.IsNullOrEmpty(fullName) ? matches[index].Name : fullName);
+        }
+
+        names.Sort(StringComparer.Ordinal);
+
+        var max = names.Count > 10 ? 10 : names.Count;
+        ambiguousCandidates = new string[max];
+        for (var index = 0; index < max; index++)
+        {
+          ambiguousCandidates[index] = names[index];
         }
       }
 

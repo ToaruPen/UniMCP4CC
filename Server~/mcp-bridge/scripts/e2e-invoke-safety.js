@@ -1,18 +1,16 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-const RUNTIME_CONFIG_FILENAME = '.unity-mcp-runtime.json';
-
-function fail(message) {
-  console.error(message);
-  process.exitCode = 1;
-  throw new Error(message);
-}
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  buildArgsFromSchema,
+  buildBridgeEnv,
+  fail,
+  readRuntimeConfig,
+  requireTool,
+  resolveBridgeIndexPath,
+  stringifyToolCallResult,
+} from './_e2eUtil.js';
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -52,93 +50,14 @@ function parseArgs(argv) {
   return options;
 }
 
-function readRuntimeConfig(unityProjectRoot) {
-  const runtimePath = path.join(unityProjectRoot, RUNTIME_CONFIG_FILENAME);
-  if (!fs.existsSync(runtimePath)) {
-    fail(`Runtime config not found: ${runtimePath}\nOpen Unity once so the MCP server writes ${RUNTIME_CONFIG_FILENAME}.`);
-  }
-
-  const parsed = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
-  const httpPort = Number(parsed.httpPort);
-  if (!Number.isFinite(httpPort) || httpPort <= 0) {
-    fail(`Invalid httpPort in ${runtimePath}`);
-  }
-
-  return {
-    httpUrl: `http://localhost:${httpPort}`,
-    runtimePath,
-    parsed,
-  };
-}
-
-function stringifyToolCallResult(result) {
-  const parts = [];
-  for (const item of result?.content ?? []) {
-    if (item?.type === 'text' && typeof item.text === 'string') {
-      parts.push(item.text);
-    } else {
-      parts.push(JSON.stringify(item, null, 2));
-    }
-  }
-  return parts.join('\n');
-}
-
-function requireTool(tools, expectedName, hintPattern) {
-  const match = tools.find((tool) => tool.name === expectedName);
-  if (match) {
-    return match;
-  }
-
-  const candidates = hintPattern
-    ? tools.filter((tool) => hintPattern.test(tool.name)).map((tool) => tool.name)
-    : tools.map((tool) => tool.name);
-
-  fail(
-    `Tool not found: ${expectedName}\n` +
-      `Available candidates:\n- ${candidates.slice(0, 50).join('\n- ')}`
-  );
-}
-
-function buildArgsFromSchema(tool, desired, { allowPartial = false } = {}) {
-  const schema = tool?.inputSchema;
-  const properties = schema?.properties && typeof schema.properties === 'object' ? schema.properties : {};
-  const required = Array.isArray(schema?.required) ? schema.required : [];
-
-  const args = {};
-  for (const entry of desired) {
-    const { keys, value, optional } = entry;
-    const key = keys.find((candidate) => Object.prototype.hasOwnProperty.call(properties, candidate)) ?? null;
-    if (!key) {
-      if (optional) {
-        continue;
-      }
-      fail(`Tool ${tool.name} does not expose any of these input keys: ${keys.join(', ')}`);
-    }
-    args[key] = value;
-  }
-
-  if (!allowPartial) {
-    const missing = required.filter((key) => !Object.prototype.hasOwnProperty.call(args, key));
-    if (missing.length > 0) {
-      fail(`Tool ${tool.name} requires missing args: ${missing.join(', ')}`);
-    }
-  }
-
-  return args;
-}
-
 async function runScenario({ unityHttpUrl, bridgeIndexPath, verbose, enableUnsafeInvoke }) {
-  const env = {
-    ...getDefaultEnvironment(),
-    UNITY_HTTP_URL: unityHttpUrl,
-    MCP_VERBOSE: verbose ? 'true' : undefined,
-    MCP_ENABLE_UNSAFE_EDITOR_INVOKE: enableUnsafeInvoke ? 'true' : undefined,
-  };
-  for (const [key, value] of Object.entries(env)) {
-    if (value === undefined) {
-      delete env[key];
-    }
-  }
+  const env = buildBridgeEnv({
+    unityHttpUrl,
+    verbose,
+    extraEnv: {
+      MCP_ENABLE_UNSAFE_EDITOR_INVOKE: enableUnsafeInvoke ? 'true' : undefined,
+    },
+  });
 
   const client = new Client(
     {
@@ -249,7 +168,7 @@ async function main() {
     unityHttpUrl = runtime.httpUrl;
   }
 
-  const bridgeIndexPath = fileURLToPath(new URL('../index.js', import.meta.url));
+  const bridgeIndexPath = resolveBridgeIndexPath(import.meta.url);
 
   await runScenario({ unityHttpUrl, bridgeIndexPath, verbose: options.verbose, enableUnsafeInvoke: false });
   await runScenario({ unityHttpUrl, bridgeIndexPath, verbose: options.verbose, enableUnsafeInvoke: true });
@@ -263,4 +182,3 @@ main().catch((error) => {
   }
   console.error(error?.stack || String(error));
 });
-

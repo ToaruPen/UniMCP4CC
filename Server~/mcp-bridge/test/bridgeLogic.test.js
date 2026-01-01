@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  analyzeUnityHttpUrl,
   buildAmbiguousTargetWarning,
   buildTargetResolutionError,
   clampTimeoutMs,
@@ -54,6 +55,8 @@ test('createBridgeConfig', () => {
   assert.equal(defaults.requireConfirmation, true);
   assert.equal(defaults.requireUnambiguousTargets, true);
   assert.equal(defaults.enableUnsafeEditorInvoke, false);
+  assert.equal(defaults.allowRemoteUnityHttpUrl, false);
+  assert.equal(defaults.strictLocalUnityHttpUrl, false);
   assert.equal(defaults.sceneListMaxDepth, 20);
   assert.equal(defaults.ambiguousCandidateLimit, 25);
   assert.equal(defaults.preflightSceneListTimeoutMs, 60_000);
@@ -69,6 +72,8 @@ test('createBridgeConfig', () => {
     MCP_REQUIRE_CONFIRMATION: '0',
     MCP_REQUIRE_UNAMBIGUOUS_TARGETS: 'false',
     MCP_ENABLE_UNSAFE_EDITOR_INVOKE: '1',
+    MCP_ALLOW_REMOTE_UNITY_HTTP_URL: 'true',
+    MCP_STRICT_LOCAL_UNITY_HTTP_URL: '1',
     MCP_SCENE_LIST_MAX_DEPTH: '999',
     MCP_AMBIGUOUS_CANDIDATE_LIMIT: '999',
     MCP_PREFLIGHT_SCENE_LIST_TIMEOUT_MS: '9999',
@@ -79,9 +84,66 @@ test('createBridgeConfig', () => {
   assert.equal(custom.requireConfirmation, false);
   assert.equal(custom.requireUnambiguousTargets, false);
   assert.equal(custom.enableUnsafeEditorInvoke, true);
+  assert.equal(custom.allowRemoteUnityHttpUrl, true);
+  assert.equal(custom.strictLocalUnityHttpUrl, true);
   assert.equal(custom.sceneListMaxDepth, 100);
   assert.equal(custom.ambiguousCandidateLimit, 200);
   assert.equal(custom.preflightSceneListTimeoutMs, 4000);
+});
+
+test('analyzeUnityHttpUrl', () => {
+  assert.deepEqual(analyzeUnityHttpUrl(null), { ok: false, error: 'Unity HTTP URL is empty' });
+  assert.deepEqual(analyzeUnityHttpUrl('   '), { ok: false, error: 'Unity HTTP URL is empty' });
+
+  assert.deepEqual(analyzeUnityHttpUrl('http://localhost:5051'), {
+    ok: true,
+    isHttp: true,
+    protocol: 'http:',
+    hostname: 'localhost',
+    port: '5051',
+    origin: 'http://localhost:5051',
+    isLoopback: true,
+  });
+
+  assert.deepEqual(analyzeUnityHttpUrl('http://127.0.0.1:5051'), {
+    ok: true,
+    isHttp: true,
+    protocol: 'http:',
+    hostname: '127.0.0.1',
+    port: '5051',
+    origin: 'http://127.0.0.1:5051',
+    isLoopback: true,
+  });
+
+  const loopbackV4 = analyzeUnityHttpUrl('http://127.0.1.1:5051');
+  assert.equal(loopbackV4.ok, true);
+  assert.equal(loopbackV4.isLoopback, true);
+  assert.equal(loopbackV4.hostname, '127.0.1.1');
+
+  const loopbackLocalhostDot = analyzeUnityHttpUrl('http://localhost.:5051');
+  assert.equal(loopbackLocalhostDot.ok, true);
+  assert.equal(loopbackLocalhostDot.isLoopback, true);
+  assert.equal(loopbackLocalhostDot.hostname, 'localhost.');
+
+  const loopbackSubdomainLocalhost = analyzeUnityHttpUrl('http://foo.localhost:5051');
+  assert.equal(loopbackSubdomainLocalhost.ok, true);
+  assert.equal(loopbackSubdomainLocalhost.isLoopback, true);
+  assert.equal(loopbackSubdomainLocalhost.hostname, 'foo.localhost');
+
+  const loopbackV6 = analyzeUnityHttpUrl('http://[::1]:5051');
+  assert.equal(loopbackV6.ok, true);
+  assert.equal(loopbackV6.isLoopback, true);
+  assert.equal(loopbackV6.hostname, '[::1]');
+
+  const remote = analyzeUnityHttpUrl('http://example.com:5051');
+  assert.equal(remote.ok, true);
+  assert.equal(remote.isHttp, true);
+  assert.equal(remote.isLoopback, false);
+  assert.equal(remote.hostname, 'example.com');
+
+  const invalid = analyzeUnityHttpUrl('not-a-url');
+  assert.equal(invalid.ok, false);
+  assert.ok(typeof invalid.error === 'string' && invalid.error.length > 0);
 });
 
 test('isConfirmationRequiredToolName', () => {

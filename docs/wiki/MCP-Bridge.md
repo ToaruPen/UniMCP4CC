@@ -14,6 +14,12 @@
 
 主要な環境変数は `Server~/mcp-bridge/README.md` を参照してください。
 
+補足:
+
+- `UNITY_HTTP_URL` が `localhost/127.0.0.1/::1` 以外を指す場合、Bridge は誤設定防止のため警告します
+- 意図したリモート接続の場合は `MCP_ALLOW_REMOTE_UNITY_HTTP_URL=true` で警告を抑制できます
+- 安全優先で非local を拒否したい場合は `MCP_STRICT_LOCAL_UNITY_HTTP_URL=true` を使用します
+
 ## Per-call Timeout Override
 
 特定のツール呼び出しだけタイムアウトを延長したい場合、ツール引数に以下を指定できます（Bridge が剥がして転送します）。

@@ -2,25 +2,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
-
-const RUNTIME_CONFIG_FILENAME = '.unity-mcp-runtime.json';
-
-function fail(message) {
-  console.error(message);
-  process.exitCode = 1;
-  throw new Error(message);
-}
-
-function parsePositiveInt(value, fallback) {
-  const parsed = Number.parseInt(String(value), 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return fallback;
-  }
-  return parsed;
-}
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import {
+  buildBridgeEnv,
+  fail,
+  parsePositiveInt,
+  readRuntimeConfig,
+  resolveBridgeIndexPath,
+  RUNTIME_CONFIG_FILENAME,
+  stringifyToolCallResult,
+} from './_e2eUtil.js';
 
 function parseArgs(argv) {
   const args = argv.slice(2);
@@ -84,38 +76,6 @@ function parseArgs(argv) {
   return options;
 }
 
-function readRuntimeConfig(unityProjectRoot) {
-  const runtimePath = path.join(unityProjectRoot, RUNTIME_CONFIG_FILENAME);
-  if (!fs.existsSync(runtimePath)) {
-    fail(`Runtime config not found: ${runtimePath}\nOpen Unity once so the MCP server writes ${RUNTIME_CONFIG_FILENAME}.`);
-  }
-
-  const parsed = JSON.parse(fs.readFileSync(runtimePath, 'utf8'));
-  const httpPort = Number(parsed.httpPort);
-  if (!Number.isFinite(httpPort) || httpPort <= 0) {
-    fail(`Invalid httpPort in ${runtimePath}`);
-  }
-
-  return {
-    httpUrl: `http://localhost:${httpPort}`,
-    httpPort,
-    runtimePath,
-    parsed,
-  };
-}
-
-function stringifyToolCallResult(result) {
-  const parts = [];
-  for (const item of result?.content ?? []) {
-    if (item?.type === 'text' && typeof item.text === 'string') {
-      parts.push(item.text);
-    } else {
-      parts.push(JSON.stringify(item, null, 2));
-    }
-  }
-  return parts.join('\n');
-}
-
 async function connectBridge({ bridgeIndexPath, env }) {
   const client = new Client({ name: 'unity-mcp-bridge-e2e-jitter', version: '1.0.0' }, { capabilities: {} });
   const transport = new StdioClientTransport({ command: 'node', args: [bridgeIndexPath], env });
@@ -164,7 +124,7 @@ async function main() {
   const unityProjectRoot = options.unityProjectRoot ?? process.cwd();
   const runtime = readRuntimeConfig(unityProjectRoot);
   const unityHttpUrl = options.unityHttpUrl ?? runtime.httpUrl;
-  const bridgeIndexPath = fileURLToPath(new URL('../index.js', import.meta.url));
+  const bridgeIndexPath = resolveBridgeIndexPath(import.meta.url);
 
   const bridgeRuntimeConfigPath = path.join(process.cwd(), RUNTIME_CONFIG_FILENAME);
 
@@ -173,16 +133,7 @@ async function main() {
   const runtimeBackup = ensureTempRuntimeConfigAbsent(bridgeRuntimeConfigPath);
 
   try {
-    const env = {
-      ...getDefaultEnvironment(),
-      UNITY_HTTP_URL: staleHttpUrl,
-      MCP_VERBOSE: options.verbose ? 'true' : undefined,
-    };
-    for (const [key, value] of Object.entries(env)) {
-      if (value === undefined) {
-        delete env[key];
-      }
-    }
+    const env = buildBridgeEnv({ unityHttpUrl: staleHttpUrl, verbose: options.verbose });
 
     const client = await connectBridge({ bridgeIndexPath, env });
     try {
@@ -228,17 +179,7 @@ async function main() {
 
   const originalCompileSource = fs.readFileSync(compileFile, 'utf8');
   const compileTag = `// unimcp-jitter ${new Date().toISOString()}`;
-
-  const env2 = {
-    ...getDefaultEnvironment(),
-    UNITY_HTTP_URL: unityHttpUrl,
-    MCP_VERBOSE: options.verbose ? 'true' : undefined,
-  };
-  for (const [key, value] of Object.entries(env2)) {
-    if (value === undefined) {
-      delete env2[key];
-    }
-  }
+  const env2 = buildBridgeEnv({ unityHttpUrl, verbose: options.verbose });
 
   const client2 = await connectBridge({ bridgeIndexPath, env: env2 });
   try {
@@ -323,4 +264,3 @@ main().catch((error) => {
   }
   console.error(error?.stack || String(error));
 });
-
