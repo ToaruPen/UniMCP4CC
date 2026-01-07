@@ -50,6 +50,55 @@
 | `Server~/mcp-bridge/test/bridgeConfig.test.js` | 77 | 現時点不要 | 300行未満（テスト） |
 | `Server~/mcp-bridge/test/bridgeLogic.test.js` | 1004 | 要リファクタ候補 | 400行超の肥大化（テスト） |
 
+## 詳細調査（要リファクタ候補）
+
+### `Editor/McpAssetImport.cs`
+- 役割: TextureImporter 操作・Sprite 一覧/参照設定・GameObject/Component 解決。
+- 膨張要因: `SetSpriteReferenceBase64` が長大、エラーペイロード生成の重複。
+- 重複: `FindSceneGameObjectsBy*`, `BuildCandidatePaths`, `ResolveType*` が他 Editor ツールと重複。
+- リファクタ方向: Scene 検索/型解決/ペイロード生成を共有ヘルパへ抽出（挙動互換を維持）。
+
+### `Editor/McpComponentTools.cs`
+- 役割: Component 追加・競合 Renderer 除去・曖昧解決。
+- 膨張要因: 失敗メッセージ構築と探索ロジックが肥大化。
+- 重複: Scene 検索/型解決が `McpAssetImport` と重複。
+- リファクタ方向: 共有ヘルパ化 + AddComponent の責務分割（競合除去/結果エンコード）。
+
+### `Server~/mcp-bridge/lib/UnityMCPServer.js`
+- 役割: ツール定義/ハンドラ、Unity RPC、サーバー初期化/配線まで単一ファイル。
+- 膨張要因: ツール固有ハンドラと共通ユーティリティが混在。
+- リファクタ方向: ハンドラ群をモジュール分割、RPC/サーバー配線を独立。
+
+### `Server~/mcp-bridge/lib/bridgeLogic.js`
+- 役割: 設定解析、toolName ルール、引数正規化、対象解決、資産フィルタ等。
+- 膨張要因: ドメインの異なる関数が 1 ファイルに集約。
+- リファクタ方向: 機能別モジュールに分割し、互換性維持のため集約 re-export を残す。
+
+### `Server~/mcp-bridge/test/bridgeLogic.test.js`
+- 役割: bridgeLogic の全関数テスト。
+- 膨張要因: 1ファイルに全テストが集中。
+- リファクタ方向: 機能別 test ファイルに分割（config / toolName / scene / asset / timeout など）。
+
+### `Server~/mcp-bridge/scripts/e2e-manual-ops.js`
+- 役割: 手動E2Eの総合シナリオ。
+- 膨張要因: 1関数内に大量の手順が直列で並ぶ。
+- リファクタ方向: ステップ関数化、ツール選択と操作の分離。
+
+## 詳細調査（要検討・保留）
+- `Editor/McpGameObjectTools.cs`: Scene 検索/パス生成が他と重複。共有ヘルパ化時に同時整理。
+- `Server~/mcp-bridge/scripts/e2e-asset-import-reference.js`: 手続き的に長いが、現状は動作追跡が容易。
+- `Server~/mcp-bridge/scripts/e2e-prefab.js`: 同上。
+- `Server~/mcp-bridge/scripts/e2e-tilemap.js`: 同上。
+- `Server~/mcp-bridge/scripts/e2e-uitoolkit.js`: 同上。
+- `Server~/mcp-bridge/scripts/playmode-ab.js`: 同上。
+
+## チケット化（要リファクタ候補）
+- `.Plans/2026/01/refactor-editor-shared-helpers.md`
+- `.Plans/2026/01/refactor-bridge-unitymcpserver-split.md`
+- `.Plans/2026/01/refactor-bridge-logic-modules.md`
+- `.Plans/2026/01/refactor-bridge-tests-split.md`
+- `.Plans/2026/01/refactor-e2e-manual-ops.md`
+
 ## ドキュメント/設定（リファクタ対象外）
 - `.Plans/2026/01/bridge-allowlist-gameobject-search.md` (82 lines)
 - `.Plans/2026/01/bridge-component-add-safe-tools-estimate.md` (72 lines)
@@ -102,7 +151,3 @@
 ## バイナリ（対象外）
 - `Editor/LocalMcp.UnityServer.Editor.dll`
 - `Samples~/UIToolkit Extension/Editor/LocalMcp.UnityServer.UIToolkit.Editor.dll`
-
-## 未コミット（参考）
-- `.Plans/2026/01/plans-changes-inventory.md`
-- `.Plans/2026/01/plans-changes-inventory.md.meta`
