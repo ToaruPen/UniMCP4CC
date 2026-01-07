@@ -33,6 +33,11 @@ namespace UniMCP4CC.Editor
       return AddComponentBase64(gameObjectPath, componentType, false);
     }
 
+    public static string AddComponentBase64V2(string gameObjectPath, string componentType, bool removeConflictingRenderers)
+    {
+      return AddComponentBase64(gameObjectPath, componentType, removeConflictingRenderers);
+    }
+
     public static string AddComponentBase64(string gameObjectPath, string componentType, bool removeConflictingRenderers)
     {
       string EncodeResult(string status, string message, Action<ResultPayload> configure = null)
@@ -176,7 +181,13 @@ namespace UniMCP4CC.Editor
         }
         catch (Exception exception)
         {
-          return EncodeResult("error", $"Failed to add component: {exception.Message}");
+          var hint = BuildAddComponentFailureHint(gameObject, resolvedType);
+          var message = $"Failed to add component: {exception.Message}";
+          if (!string.IsNullOrWhiteSpace(hint))
+          {
+            message = $"{message}\n{hint}";
+          }
+          return EncodeResult("error", message);
         }
 
         if (addedComponent == null)
@@ -568,6 +579,18 @@ namespace UniMCP4CC.Editor
           return
             "SpriteRenderer conflicts with existing MeshFilter/MeshRenderer on this GameObject. " +
             "Remove those components, create an empty GameObject, or re-run with removeConflictingRenderers: true.";
+        }
+      }
+
+      if (resolvedType.FullName == "UnityEngine.Tilemaps.TilemapRenderer")
+      {
+        var hasMeshFilter = gameObject.GetComponent<MeshFilter>() != null;
+        var hasMeshRenderer = gameObject.GetComponent<MeshRenderer>() != null;
+        if (hasMeshFilter || hasMeshRenderer)
+        {
+          return
+            "TilemapRenderer conflicts with existing MeshFilter/MeshRenderer on this GameObject. " +
+            "Use GameObject/2D Object/Tilemap/Rectangular, or create an empty GameObject and add Tilemap + TilemapRenderer.";
         }
       }
 

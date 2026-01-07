@@ -53,7 +53,7 @@ const ASSET_IMPORT_SET_TEXTURE_TYPE_METHOD = 'SetTextureTypeBase64';
 const ASSET_IMPORT_SET_SPRITE_REFERENCE_METHOD = 'SetSpriteReferenceBase64';
 const ASSET_IMPORT_LIST_SPRITES_METHOD = 'ListSpritesBase64';
 const COMPONENT_TOOLS_TYPE = 'UniMCP4CC.Editor.McpComponentTools';
-const COMPONENT_ADD_METHOD = 'AddComponentBase64';
+const COMPONENT_ADD_METHOD = 'AddComponentBase64V2';
 const GAMEOBJECT_TOOLS_TYPE = 'UniMCP4CC.Editor.McpGameObjectTools';
 const GAMEOBJECT_CREATE_EMPTY_SAFE_METHOD = 'CreateEmptySafeBase64';
 
