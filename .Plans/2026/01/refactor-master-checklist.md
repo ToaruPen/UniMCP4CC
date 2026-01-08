@@ -20,19 +20,19 @@
 - [ ] コミット
 
 ## 2. bridgeLogic 分割（core）
-- [ ] スコープ確認（`bridgeLogic.js`）
-- [ ] `lib/bridgeLogic/*` の構成確定
-- [ ] 関数移動（config/toolName/args/scene/asset/timeout/log）
-- [ ] `bridgeLogic.js` を re-export 化
-- [ ] `cd Server~/mcp-bridge && npm test`
-- [ ] `cd Server~/mcp-bridge && npm run test:coverage`
+- [x] スコープ確認（`bridgeLogic.js`）
+- [x] `lib/bridgeLogic/*` の構成確定
+- [x] 関数移動（config/toolName/args/scene/asset/timeout/log）
+- [x] `bridgeLogic.js` を re-export 化
+- [x] `cd Server~/mcp-bridge && npm test`
+- [x] `cd Server~/mcp-bridge && npm run test:coverage`
 - [ ] コミット
 
 ## 3. Editor 共有ヘルパ抽出（core）
-- [ ] スコープ確認（`McpAssetImport.cs`, `McpComponentTools.cs`, `McpGameObjectTools.cs`）
-- [ ] 新規クラス名確定（`McpEditorSceneQuery`, `McpEditorTypeResolver`）
-- [ ] Scene 検索ヘルパ抽出
-- [ ] Type 解決ヘルパ抽出
+- [x] スコープ確認（`McpAssetImport.cs`, `McpComponentTools.cs`, `McpGameObjectTools.cs`）
+- [x] 新規クラス名確定（`McpEditorSceneQuery`, `McpEditorTypeResolver`）
+- [x] Scene 検索ヘルパ抽出
+- [x] Type 解決ヘルパ抽出
 - [ ] Unity Editor でコンパイル確認
 - [ ] `unity.component.add` の動作確認（手動）
 - [ ] `unity.component.setSpriteReference` の動作確認（手動）
@@ -40,10 +40,10 @@
 - [ ] コミット
 
 ## 4. e2e-manual-ops 整理（test）
-- [ ] スコープ確認（`e2e-manual-ops.js`）
-- [ ] 手順の関数分割
-- [ ] tool 選択/操作ロジック分離
-- [ ] `node --check Server~/mcp-bridge/scripts/e2e-manual-ops.js`
+- [x] スコープ確認（`e2e-manual-ops.js`）
+- [x] 手順の関数分割
+- [x] tool 選択/操作ロジック分離
+- [x] `node --check Server~/mcp-bridge/scripts/e2e-manual-ops.js`
 - [ ] `cd Server~/mcp-bridge && node scripts/e2e-manual-ops.js --project "<UnityProject>"`
 - [ ] コミット
 

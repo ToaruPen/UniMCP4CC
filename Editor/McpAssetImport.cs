@@ -3,9 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace UniMCP4CC.Editor
 {
@@ -28,9 +26,6 @@ namespace UniMCP4CC.Editor
       public int candidateCount;
       public string[] candidatePaths;
     }
-
-    private static readonly object TypeCacheLock = new object();
-    private static readonly Dictionary<string, Type> TypeCache = new Dictionary<string, Type>(StringComparer.Ordinal);
 
     public static string SetTextureTypeBase64(string assetPath, string textureType, string reimport)
     {
@@ -175,7 +170,7 @@ namespace UniMCP4CC.Editor
           return EncodeResult("error", "gameObjectPath, componentType, and fieldName are required");
         }
 
-        var gameObjectMatches = FindSceneGameObjectsByQuery(gameObjectPath);
+        var gameObjectMatches = McpEditorSceneQuery.FindSceneGameObjectsByQuery(gameObjectPath);
         if (gameObjectMatches.Count == 0)
         {
           return EncodeResult("error", $"GameObject not found: {gameObjectPath}");
@@ -183,7 +178,7 @@ namespace UniMCP4CC.Editor
 
         if (gameObjectMatches.Count > 1)
         {
-          var candidatePaths = BuildCandidatePaths(gameObjectMatches, maxCandidates: 10);
+          var candidatePaths = McpEditorSceneQuery.BuildCandidatePaths(gameObjectMatches, maxCandidates: 10);
           var messageBuilder = new StringBuilder();
           messageBuilder.Append($"GameObject is ambiguous: {gameObjectPath}");
           messageBuilder.Append("\nCandidates:");
@@ -212,12 +207,16 @@ namespace UniMCP4CC.Editor
 
         if (componentTypeTrimmed.IndexOf('.') < 0)
         {
-          resolvedComponentType = ResolveComponentTypeOnGameObject(gameObject, componentTypeTrimmed, out ambiguousComponentTypes);
+          resolvedComponentType = McpEditorTypeResolver.ResolveComponentTypeOnGameObject(
+            gameObject,
+            componentTypeTrimmed,
+            out ambiguousComponentTypes
+          );
         }
 
         if (resolvedComponentType == null && ambiguousComponentTypes == null)
         {
-          resolvedComponentType = ResolveType(componentTypeTrimmed, out ambiguousComponentTypes);
+          resolvedComponentType = McpEditorTypeResolver.ResolveType(componentTypeTrimmed, out ambiguousComponentTypes);
         }
 
         if (resolvedComponentType == null)
@@ -408,226 +407,6 @@ namespace UniMCP4CC.Editor
       return sprites;
     }
 
-    private static List<GameObject> FindSceneGameObjectsByQuery(string query)
-    {
-      var matches = new List<GameObject>();
-      if (string.IsNullOrWhiteSpace(query))
-      {
-        return matches;
-      }
-
-      var trimmed = query.Trim();
-      if (trimmed.IndexOf('/') >= 0)
-      {
-        FindSceneGameObjectsByPath(trimmed, matches);
-      }
-      else
-      {
-        FindSceneGameObjectsByName(trimmed, matches);
-      }
-
-      return matches;
-    }
-
-    private static IEnumerable<Scene> EnumerateLoadedScenes()
-    {
-      var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
-      var prefabStageScene = prefabStage != null ? prefabStage.scene : default;
-      var hasPrefabStageScene = prefabStage != null;
-
-      var sceneCount = SceneManager.sceneCount;
-      for (var index = 0; index < sceneCount; index++)
-      {
-        var scene = SceneManager.GetSceneAt(index);
-        if (!scene.IsValid() || !scene.isLoaded)
-        {
-          continue;
-        }
-
-        if (hasPrefabStageScene && scene == prefabStageScene)
-        {
-          continue;
-        }
-
-        yield return scene;
-      }
-    }
-
-    private static void FindSceneGameObjectsByPath(string path, List<GameObject> matches)
-    {
-      if (matches == null)
-      {
-        return;
-      }
-
-      var segments = path.Split('/');
-      if (segments.Length == 0)
-      {
-        return;
-      }
-
-      var seen = new HashSet<int>();
-
-      foreach (var scene in EnumerateLoadedScenes())
-      {
-        var roots = scene.GetRootGameObjects();
-        var current = new List<GameObject>();
-        for (var rootIndex = 0; rootIndex < roots.Length; rootIndex++)
-        {
-          var root = roots[rootIndex];
-          if (root != null && string.Equals(root.name, segments[0], StringComparison.Ordinal))
-          {
-            current.Add(root);
-          }
-        }
-
-        for (var segmentIndex = 1; segmentIndex < segments.Length && current.Count > 0; segmentIndex++)
-        {
-          var next = new List<GameObject>();
-          var segment = segments[segmentIndex];
-          for (var currentIndex = 0; currentIndex < current.Count; currentIndex++)
-          {
-            var candidate = current[currentIndex];
-            if (candidate == null)
-            {
-              continue;
-            }
-            var transform = candidate.transform;
-            if (transform == null)
-            {
-              continue;
-            }
-            for (var childIndex = 0; childIndex < transform.childCount; childIndex++)
-            {
-              var child = transform.GetChild(childIndex);
-              if (child != null && string.Equals(child.name, segment, StringComparison.Ordinal))
-              {
-                next.Add(child.gameObject);
-              }
-            }
-          }
-          current = next;
-        }
-
-        for (var currentIndex = 0; currentIndex < current.Count; currentIndex++)
-        {
-          var candidate = current[currentIndex];
-          if (candidate == null)
-          {
-            continue;
-          }
-          if (seen.Add(candidate.GetInstanceID()))
-          {
-            matches.Add(candidate);
-          }
-        }
-      }
-    }
-
-    private static void FindSceneGameObjectsByName(string name, List<GameObject> matches)
-    {
-      if (matches == null)
-      {
-        return;
-      }
-
-      var seen = new HashSet<int>();
-      foreach (var scene in EnumerateLoadedScenes())
-      {
-        var roots = scene.GetRootGameObjects();
-        for (var rootIndex = 0; rootIndex < roots.Length; rootIndex++)
-        {
-          var root = roots[rootIndex];
-          if (root == null)
-          {
-            continue;
-          }
-          foreach (var transform in root.GetComponentsInChildren<Transform>(true))
-          {
-            if (transform == null)
-            {
-              continue;
-            }
-            if (!string.Equals(transform.name, name, StringComparison.Ordinal))
-            {
-              continue;
-            }
-            var candidate = transform.gameObject;
-            if (candidate == null)
-            {
-              continue;
-            }
-            if (seen.Add(candidate.GetInstanceID()))
-            {
-              matches.Add(candidate);
-            }
-          }
-        }
-      }
-    }
-
-    private static string[] BuildCandidatePaths(List<GameObject> matches, int maxCandidates)
-    {
-      if (matches == null || matches.Count == 0 || maxCandidates <= 0)
-      {
-        return Array.Empty<string>();
-      }
-
-      var paths = new List<string>(matches.Count);
-      var seen = new HashSet<string>(StringComparer.Ordinal);
-      for (var index = 0; index < matches.Count; index++)
-      {
-        var candidate = matches[index];
-        if (candidate == null)
-        {
-          continue;
-        }
-        var path = GetHierarchyPath(candidate);
-        if (string.IsNullOrWhiteSpace(path))
-        {
-          continue;
-        }
-        if (seen.Add(path))
-        {
-          paths.Add(path);
-        }
-      }
-
-      paths.Sort(StringComparer.Ordinal);
-      var count = paths.Count > maxCandidates ? maxCandidates : paths.Count;
-      var result = new string[count];
-      for (var index = 0; index < count; index++)
-      {
-        result[index] = paths[index];
-      }
-
-      return result;
-    }
-
-    private static string GetHierarchyPath(GameObject gameObject)
-    {
-      if (gameObject == null)
-      {
-        return string.Empty;
-      }
-
-      var transform = gameObject.transform;
-      if (transform == null)
-      {
-        return gameObject.name ?? string.Empty;
-      }
-
-      var names = new Stack<string>();
-      var current = transform;
-      while (current != null)
-      {
-        names.Push(current.name);
-        current = current.parent;
-      }
-
-      return string.Join("/", names.ToArray());
-    }
-
     private static bool TryParseTextureImporterType(string value, out TextureImporterType parsed)
     {
       if (string.IsNullOrWhiteSpace(value))
@@ -670,183 +449,6 @@ namespace UniMCP4CC.Editor
           parsed = TextureImporterType.Default;
           return false;
       }
-    }
-
-    private static Type ResolveComponentTypeOnGameObject(GameObject gameObject, string typeName, out string[] ambiguousCandidates)
-    {
-      ambiguousCandidates = null;
-      if (gameObject == null || string.IsNullOrWhiteSpace(typeName))
-      {
-        return null;
-      }
-
-      var trimmed = typeName.Trim();
-      if (trimmed.Length == 0)
-      {
-        return null;
-      }
-
-      var matches = new HashSet<Type>();
-      foreach (var component in gameObject.GetComponents<Component>())
-      {
-        if (component == null)
-        {
-          continue;
-        }
-
-        var candidate = component.GetType();
-        if (candidate != null && string.Equals(candidate.Name, trimmed, StringComparison.Ordinal))
-        {
-          matches.Add(candidate);
-        }
-      }
-
-      if (matches.Count == 1)
-      {
-        foreach (var candidate in matches)
-        {
-          return candidate;
-        }
-      }
-
-      if (matches.Count > 1)
-      {
-        var names = new List<string>(matches.Count);
-        foreach (var candidate in matches)
-        {
-          var fullName = candidate.FullName;
-          names.Add(string.IsNullOrEmpty(fullName) ? candidate.Name : fullName);
-        }
-
-        names.Sort(StringComparer.Ordinal);
-
-        var max = names.Count > 10 ? 10 : names.Count;
-        ambiguousCandidates = new string[max];
-        for (var index = 0; index < max; index++)
-        {
-          ambiguousCandidates[index] = names[index];
-        }
-      }
-
-      return null;
-    }
-
-    private static Type ResolveType(string typeName, out string[] ambiguousCandidates)
-    {
-      ambiguousCandidates = null;
-      if (string.IsNullOrWhiteSpace(typeName))
-      {
-        return null;
-      }
-
-      var trimmed = typeName.Trim();
-      lock (TypeCacheLock)
-      {
-        if (TypeCache.TryGetValue(trimmed, out var cached) && cached != null)
-        {
-          return cached;
-        }
-      }
-
-      var resolved = ResolveTypeUncached(trimmed, out ambiguousCandidates);
-      if (resolved != null)
-      {
-        lock (TypeCacheLock)
-        {
-          TypeCache[trimmed] = resolved;
-        }
-      }
-
-      return resolved;
-    }
-
-    private static Type ResolveTypeUncached(string trimmed, out string[] ambiguousCandidates)
-    {
-      ambiguousCandidates = null;
-      var found = Type.GetType(trimmed);
-      if (found != null && typeof(Component).IsAssignableFrom(found))
-      {
-        return found;
-      }
-
-      foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-      {
-        try
-        {
-          var candidate = assembly.GetType(trimmed);
-          if (candidate != null && typeof(Component).IsAssignableFrom(candidate))
-          {
-            return candidate;
-          }
-        }
-        catch
-        {
-          // ignore and continue
-        }
-      }
-
-      if (trimmed.IndexOf('.') >= 0)
-      {
-        return null;
-      }
-
-      var matches = new List<Type>();
-      foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
-      {
-        try
-        {
-          foreach (var candidate in assembly.GetTypes())
-          {
-            if (
-              candidate != null &&
-              typeof(Component).IsAssignableFrom(candidate) &&
-              string.Equals(candidate.Name, trimmed, StringComparison.Ordinal)
-            )
-            {
-              matches.Add(candidate);
-              if (matches.Count >= 32)
-              {
-                break;
-              }
-            }
-          }
-        }
-        catch
-        {
-          // ignore and continue
-        }
-
-        if (matches.Count >= 32)
-        {
-          break;
-        }
-      }
-
-      if (matches.Count == 1)
-      {
-        return matches[0];
-      }
-
-      if (matches.Count > 1)
-      {
-        var names = new List<string>(matches.Count);
-        for (var index = 0; index < matches.Count; index++)
-        {
-          var fullName = matches[index].FullName;
-          names.Add(string.IsNullOrEmpty(fullName) ? matches[index].Name : fullName);
-        }
-
-        names.Sort(StringComparer.Ordinal);
-
-        var max = names.Count > 10 ? 10 : names.Count;
-        ambiguousCandidates = new string[max];
-        for (var index = 0; index < max; index++)
-        {
-          ambiguousCandidates[index] = names[index];
-        }
-      }
-
-      return null;
     }
 
     private static bool ParseBoolean(string value, bool fallback)
