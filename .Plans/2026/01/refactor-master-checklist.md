@@ -29,10 +29,10 @@
 - [ ] コミット
 
 ## 3. Editor 共有ヘルパ抽出（core）
-- [ ] スコープ確認（`McpAssetImport.cs`, `McpComponentTools.cs`, `McpGameObjectTools.cs`）
-- [ ] 新規クラス名確定（`McpEditorSceneQuery`, `McpEditorTypeResolver`）
-- [ ] Scene 検索ヘルパ抽出
-- [ ] Type 解決ヘルパ抽出
+- [x] スコープ確認（`McpAssetImport.cs`, `McpComponentTools.cs`, `McpGameObjectTools.cs`）
+- [x] 新規クラス名確定（`McpEditorSceneQuery`, `McpEditorTypeResolver`）
+- [x] Scene 検索ヘルパ抽出
+- [x] Type 解決ヘルパ抽出
 - [ ] Unity Editor でコンパイル確認
 - [ ] `unity.component.add` の動作確認（手動）
 - [ ] `unity.component.setSpriteReference` の動作確認（手動）
