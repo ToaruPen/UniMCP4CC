@@ -40,10 +40,10 @@
 - [ ] コミット
 
 ## 4. e2e-manual-ops 整理（test）
-- [ ] スコープ確認（`e2e-manual-ops.js`）
-- [ ] 手順の関数分割
-- [ ] tool 選択/操作ロジック分離
-- [ ] `node --check Server~/mcp-bridge/scripts/e2e-manual-ops.js`
+- [x] スコープ確認（`e2e-manual-ops.js`）
+- [x] 手順の関数分割
+- [x] tool 選択/操作ロジック分離
+- [x] `node --check Server~/mcp-bridge/scripts/e2e-manual-ops.js`
 - [ ] `cd Server~/mcp-bridge && node scripts/e2e-manual-ops.js --project "<UnityProject>"`
 - [ ] コミット
 
